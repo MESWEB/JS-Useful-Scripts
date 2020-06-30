@@ -1,21 +1,58 @@
-var CACHE_NAME = 'my-site-cache-v1';
-var urlsToCache = [
-    '/',
-    '/img/',
-    '/css/style.css',
+"use strict";
+
+console.log('WORKER: executing.');
+
+/* A version number is useful when updating the worker logic,
+   allowing you to remove outdated cache entries during the update.
+*/
+var version = 'v2::';
+
+/* These resources will be downloaded and cached by the service worker
+   during the installation process. If any resource fails to be downloaded,
+   then the service worker won't be installed either.
+*/
+var offlineFundamentals = [
+    '',
+    'css/style.css',
 ];
 
-self.addEventListener('install', function(event) {
-    // Perform install steps
+/* The install event fires when the service worker is first installed.
+   You can use this event to prepare the service worker to be able to serve
+   files while visitors are offline.
+*/
+self.addEventListener("install", function(event) {
+    console.log('WORKER: install event in progress.');
+    /* Using event.waitUntil(p) blocks the installation process on the provided
+       promise. If the promise is rejected, the service worker won't be installed.
+    */
     event.waitUntil(
-        caches.open(CACHE_NAME)
+        /* The caches built-in is a promise-based API that helps you cache responses,
+           as well as finding and deleting them.
+        */
+        caches
+            /* You can open a cache by name, and this method returns a promise. We use
+               a versioned cache name here so that we can remove old cache entries in
+               one fell swoop later, when phasing out an older service worker.
+            */
+            .open(version + 'fundamentals')
             .then(function(cache) {
-                console.log('Opened cache');
-                return cache.addAll(urlsToCache);
+                /* After the cache is opened, we can fill it with the offline fundamentals.
+                   The method below will add all resources in `offlineFundamentals` to the
+                   cache, after making requests for them.
+                */
+                return cache.addAll(offlineFundamentals);
+            })
+            .then(function() {
+                console.log('WORKER: install completed');
             })
     );
 });
 
+/* The fetch event fires whenever a page controlled by this service worker requests
+   a resource. This isn't limited to `fetch` or even XMLHttpRequest. Instead, it
+   comprehends even the request for the HTML page on first load, as well as JS and
+   CSS resources, fonts, any images, etc.
+*/
 self.addEventListener("fetch", function(event) {
     console.log('WORKER: fetch event in progress.');
 
@@ -45,6 +82,7 @@ self.addEventListener("fetch", function(event) {
                    This pattern is known for producing "eventually fresh" responses,
                    where we return cached responses immediately, and meanwhile pull
                    a network response and store that in the cache.
+
                    Read more:
                    https://ponyfoo.com/articles/progressive-networking-serviceworker
                 */
@@ -98,8 +136,8 @@ self.addEventListener("fetch", function(event) {
                          e.g: `return caches.match('/some/cached/image.png')`
                        - You should also consider the origin. It's easier to decide what
                          "unavailable" means for requests against your origins than for requests
-                         against a third party, such as an ad provider
-                       - Generate a Response programmaticaly, as shown below, and return that
+                         against a third party, such as an ad provider.
+                       - Generate a Response programmaticaly, as shown below, and return that.
                     */
 
                     console.log('WORKER: fetch request failed in both cache and network.');
@@ -119,8 +157,12 @@ self.addEventListener("fetch", function(event) {
     );
 });
 
-
-
+/* The activate event fires after a service worker has been successfully installed.
+   It is most useful when phasing out an older version of a service worker, as at
+   this point you know that the new worker was installed correctly. In this example,
+   we delete old caches that don't match the version in the worker we just finished
+   installing.
+*/
 self.addEventListener("activate", function(event) {
     /* Just like with the install event, event.waitUntil blocks activate on a promise.
        Activation will fail unless the promise is fulfilled.
